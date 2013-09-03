@@ -104,7 +104,7 @@ void Set_System(void)
 	int Dx;
 	for(Dx = 0; Dx < Dn; ++Dx)
 	{
-		DIO_Init(Dx);
+		DIO_Init((DIO_TypeDef)Dx);
 	}
 
 	/* Configure TIM1 for LED-PWM and BUTTON-DEBOUNCE usage */
@@ -114,7 +114,7 @@ void Set_System(void)
 	int LEDx;
 	for(LEDx = 0; LEDx < LEDn; ++LEDx)
 	{
-	    LED_Init(LEDx);
+	    LED_Init((Led_TypeDef)LEDx);
 	}
 
     /* Configure the Button */

@@ -397,7 +397,7 @@ void SPARK_WLAN_Loop(void)
 	{
 	    wlan_ioctl_set_connection_policy(DISABLE, DISABLE, DISABLE);
 	    /* Edit the below line before use*/
-	    wlan_connect(WLAN_SEC_WPA2, "ssid", 4, NULL, "password", 8);
+	    wlan_connect(WLAN_SEC_WPA2, "ssid", 4, NULL, (unsigned char *)"password", 8);
 	    WLAN_MANUAL_CONNECT = 0;
 	}
 
@@ -459,81 +459,81 @@ void SPARK_WLAN_Loop(void)
 
 void SPARK_WLAN_Timing(void)
 {
-    if (WLAN_CONNECTED && !SPARK_WLAN_SLEEP && !SPARK_SOCKET_CONNECTED)
+  if (WLAN_CONNECTED && !SPARK_WLAN_SLEEP && !SPARK_SOCKET_CONNECTED)
+  {
+    if (!Spark_Connect_Count)
     {
-		if (!Spark_Connect_Count)
-		{
-			if (TimingSparkResetTimeout >= TIMING_SPARK_RESET_TIMEOUT)
-			{
-				Spark_Error_Count = 2;
-				NVMEM_Spark_File_Data[ERROR_COUNT_FILE_OFFSET] = Spark_Error_Count;
-				nvmem_write(NVMEM_SPARK_FILE_ID, 1, ERROR_COUNT_FILE_OFFSET, &NVMEM_Spark_File_Data[ERROR_COUNT_FILE_OFFSET]);
+      if (TimingSparkResetTimeout >= TIMING_SPARK_RESET_TIMEOUT)
+      {
+        Spark_Error_Count = 2;
+        NVMEM_Spark_File_Data[ERROR_COUNT_FILE_OFFSET] = Spark_Error_Count;
+        nvmem_write(NVMEM_SPARK_FILE_ID, 1, ERROR_COUNT_FILE_OFFSET, &NVMEM_Spark_File_Data[ERROR_COUNT_FILE_OFFSET]);
 
-				NVIC_SystemReset();
-			}
-			else
-			{
-				TimingSparkResetTimeout++;
-			}
-		}
-		else if (Spark_Connect_Count >= SPARK_CONNECT_MAX_ATTEMPT)
-		{
-			Spark_Error_Count = 3;
-			NVMEM_Spark_File_Data[ERROR_COUNT_FILE_OFFSET] = Spark_Error_Count;
-			nvmem_write(NVMEM_SPARK_FILE_ID, 1, ERROR_COUNT_FILE_OFFSET, &NVMEM_Spark_File_Data[ERROR_COUNT_FILE_OFFSET]);
+        NVIC_SystemReset();
+      }
+      else
+      {
+        TimingSparkResetTimeout++;
+      }
+    }
+    else if (Spark_Connect_Count >= SPARK_CONNECT_MAX_ATTEMPT)
+    {
+      Spark_Error_Count = 3;
+      NVMEM_Spark_File_Data[ERROR_COUNT_FILE_OFFSET] = Spark_Error_Count;
+      nvmem_write(NVMEM_SPARK_FILE_ID, 1, ERROR_COUNT_FILE_OFFSET, &NVMEM_Spark_File_Data[ERROR_COUNT_FILE_OFFSET]);
 
-			NVIC_SystemReset();
-		}
+      NVIC_SystemReset();
+    }
+  }
+
+  if (SPARK_SOCKET_CONNECTED)
+  {
+    if(Spark_Connect_Count)
+      Spark_Connect_Count = 0;
+    else
+      TimingSparkResetTimeout = 0;
+
+    SPARK_SOCKET_ALIVE = 1;
+
+    if (TimingSparkProcessAPI >= TIMING_SPARK_PROCESS_API)
+    {
+      TimingSparkProcessAPI = 0;
+
+      if(Spark_Process_API_Response() < 0)
+        SPARK_SOCKET_ALIVE = 0;
+    }
+    else
+    {
+      TimingSparkProcessAPI++;
     }
 
-	if (SPARK_SOCKET_CONNECTED)
-	{
-		if(Spark_Connect_Count)
-			Spark_Connect_Count = 0;
-		else
-			TimingSparkResetTimeout = 0;
+    if (SPARK_DEVICE_ACKED)
+    {
+      if (TimingSparkAliveTimeout >= TIMING_SPARK_ALIVE_TIMEOUT)
+      {
+        TimingSparkAliveTimeout = 0;
 
-		SPARK_SOCKET_ALIVE = 1;
+        SPARK_SOCKET_ALIVE = 0;
+      }
+      else
+      {
+        TimingSparkAliveTimeout++;
+      }
+    }
 
-		if (TimingSparkProcessAPI >= TIMING_SPARK_PROCESS_API)
-		{
-			TimingSparkProcessAPI = 0;
+    if(SPARK_SOCKET_ALIVE != 1)
+    {
+      Spark_Error_Count = 4;
+      NVMEM_Spark_File_Data[ERROR_COUNT_FILE_OFFSET] = Spark_Error_Count;
+      nvmem_write(NVMEM_SPARK_FILE_ID, 1, ERROR_COUNT_FILE_OFFSET, &NVMEM_Spark_File_Data[ERROR_COUNT_FILE_OFFSET]);
 
-			if(Spark_Process_API_Response() < 0)
-				SPARK_SOCKET_ALIVE = 0;
-		}
-		else
-		{
-			TimingSparkProcessAPI++;
-		}
+      Spark_Disconnect();
 
-		if (SPARK_DEVICE_ACKED)
-		{
-			if (TimingSparkAliveTimeout >= TIMING_SPARK_ALIVE_TIMEOUT)
-			{
-				TimingSparkAliveTimeout = 0;
-
-				SPARK_SOCKET_ALIVE = 0;
-			}
-			else
-			{
-				TimingSparkAliveTimeout++;
-			}
-		}
-
-		if(SPARK_SOCKET_ALIVE != 1)
-		{
-			Spark_Error_Count = 4;
-			NVMEM_Spark_File_Data[ERROR_COUNT_FILE_OFFSET] = Spark_Error_Count;
-			nvmem_write(NVMEM_SPARK_FILE_ID, 1, ERROR_COUNT_FILE_OFFSET, &NVMEM_Spark_File_Data[ERROR_COUNT_FILE_OFFSET]);
-
-			Spark_Disconnect();
-
-			SPARK_SOCKET_CONNECTED = 0;
-			SPARK_DEVICE_ACKED = 0;
-			SPARK_FLASH_UPDATE = 0;
-			SPARK_PROCESS_CHUNK = 0;
-			Spark_Connect_Count = 0;
-		}
-	}
+      SPARK_SOCKET_CONNECTED = 0;
+      SPARK_DEVICE_ACKED = 0;
+      SPARK_FLASH_UPDATE = 0;
+      SPARK_PROCESS_CHUNK = 0;
+      Spark_Connect_Count = 0;
+    }
+  }
 }

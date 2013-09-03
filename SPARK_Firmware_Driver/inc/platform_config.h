@@ -58,23 +58,23 @@
 #define BUTTON1_PIN                      	GPIO_Pin_10
 #define BUTTON1_GPIO_PORT                	GPIOA
 #define BUTTON1_GPIO_CLK                 	RCC_APB2Periph_GPIOA
-#define BUTTON1_GPIO_MODE					GPIO_Mode_IPU
+#define BUTTON1_GPIO_MODE					(GPIOMode_TypeDef)GPIO_Mode_IPU
 #define BUTTON1_PRESSED						0x00
 #define BUTTON1_EXTI_LINE                	EXTI_Line10
 #define BUTTON1_EXTI_PORT_SOURCE         	GPIO_PortSourceGPIOA
 #define BUTTON1_EXTI_PIN_SOURCE          	GPIO_PinSource10
 #define BUTTON1_EXTI_IRQn                	EXTI15_10_IRQn
-#define	BUTTON1_EXTI_TRIGGER				EXTI_Trigger_Falling
+#define	BUTTON1_EXTI_TRIGGER				(EXTITrigger_TypeDef)EXTI_Trigger_Falling
 #define BUTTON2_PIN                     	0
 #define BUTTON2_GPIO_PORT               	0
 #define BUTTON2_GPIO_CLK                	0
-#define BUTTON2_GPIO_MODE					0
+#define BUTTON2_GPIO_MODE					(GPIOMode_TypeDef)0
 #define BUTTON2_PRESSED						0
 #define BUTTON2_EXTI_LINE               	0
 #define BUTTON2_EXTI_PORT_SOURCE        	0
 #define BUTTON2_EXTI_PIN_SOURCE         	0
 #define BUTTON2_EXTI_IRQn               	0
-#define	BUTTON2_EXTI_TRIGGER				0
+#define	BUTTON2_EXTI_TRIGGER				(EXTITrigger_TypeDef)0
 
 #elif defined (USE_SPARK_CORE_V02)
 
@@ -98,23 +98,23 @@
 #define BUTTON1_PIN                      	GPIO_Pin_2
 #define BUTTON1_GPIO_PORT                	GPIOB
 #define BUTTON1_GPIO_CLK                 	RCC_APB2Periph_GPIOB
-#define BUTTON1_GPIO_MODE					GPIO_Mode_IPU
+#define BUTTON1_GPIO_MODE					(GPIOMode_TypeDef)GPIO_Mode_IPU
 #define BUTTON1_PRESSED						0x00
 #define BUTTON1_EXTI_LINE                	EXTI_Line2
 #define BUTTON1_EXTI_PORT_SOURCE         	GPIO_PortSourceGPIOB
 #define BUTTON1_EXTI_PIN_SOURCE          	GPIO_PinSource2
 #define BUTTON1_EXTI_IRQn                	EXTI2_IRQn
-#define	BUTTON1_EXTI_TRIGGER				EXTI_Trigger_Falling
+#define	BUTTON1_EXTI_TRIGGER				(EXTITrigger_TypeDef)EXTI_Trigger_Falling
 #define BUTTON2_PIN                     	0
 #define BUTTON2_GPIO_PORT               	0
 #define BUTTON2_GPIO_CLK                	0
-#define BUTTON2_GPIO_MODE					0
+#define BUTTON2_GPIO_MODE					(GPIOMode_TypeDef)0
 #define BUTTON2_PRESSED						0
 #define BUTTON2_EXTI_LINE               	0
 #define BUTTON2_EXTI_PORT_SOURCE        	0
 #define BUTTON2_EXTI_PIN_SOURCE         	0
 #define BUTTON2_EXTI_IRQn               	0
-#define	BUTTON2_EXTI_TRIGGER				0
+#define	BUTTON2_EXTI_TRIGGER				(EXTITrigger_TypeDef)0
 
 #endif
 
