@@ -46,6 +46,7 @@ extern __IO uint32_t TimingSparkOTATimeout;
 
 extern __IO uint8_t SPARK_WLAN_SLEEP;
 extern __IO uint8_t SPARK_SOCKET_CONNECTED;
+extern __IO uint8_t SPARK_DEVICE_HANDSHAKING;
 extern __IO uint8_t SPARK_DEVICE_ACKED;
 extern __IO uint8_t SPARK_FLASH_UPDATE;
 extern __IO uint8_t SPARK_PROCESS_CHUNK;

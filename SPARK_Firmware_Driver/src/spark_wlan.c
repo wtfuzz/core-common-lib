@@ -6,7 +6,7 @@ __IO uint32_t TimingSparkAliveTimeout;
 __IO uint32_t TimingSparkResetTimeout;
 __IO uint32_t TimingSparkOTATimeout;
 
-uint8_t WLAN_MANUAL_CONNECT = 0;//For Manual connection, set this to 1
+uint8_t WLAN_MANUAL_CONNECT = 1;//For Manual connection, set this to 1
 uint8_t WLAN_SMART_CONFIG_START;
 uint8_t WLAN_SMART_CONFIG_STOP;
 uint8_t WLAN_SMART_CONFIG_FINISHED;
@@ -28,6 +28,7 @@ unsigned char NVMEM_Spark_File_Data[NVMEM_SPARK_FILE_SIZE];
 __IO uint8_t SPARK_WLAN_SLEEP;
 __IO uint8_t SPARK_WLAN_STARTED;
 __IO uint8_t SPARK_SOCKET_CONNECTED;
+__IO uint8_t SPARK_DEVICE_HANDSHAKING;
 __IO uint8_t SPARK_SOCKET_ALIVE;
 __IO uint8_t SPARK_DEVICE_ACKED;
 __IO uint8_t SPARK_FLASH_UPDATE;
@@ -397,7 +398,9 @@ void SPARK_WLAN_Loop(void)
 	{
 	    wlan_ioctl_set_connection_policy(DISABLE, DISABLE, DISABLE);
 	    /* Edit the below line before use*/
-	    wlan_connect(WLAN_SEC_WPA2, "ssid", 4, NULL, "password", 8);
+	    //wlan_connect(WLAN_SEC_WPA2, "Tomato24", 8, NULL, "", 0);
+		wlan_connect(WLAN_SEC_UNSEC, "Tomato24", 8, NULL, "", 0);
+		
 	    WLAN_MANUAL_CONNECT = 0;
 	}
 
@@ -463,6 +466,7 @@ void SPARK_WLAN_Timing(void)
     {
 		if (!Spark_Connect_Count)
 		{
+			//if we've been disconnected for longer than xx seconds, log the error and reset.
 			if (TimingSparkResetTimeout >= TIMING_SPARK_RESET_TIMEOUT)
 			{
 				Spark_Error_Count = 2;
@@ -478,13 +482,14 @@ void SPARK_WLAN_Timing(void)
 		}
 		else if (Spark_Connect_Count >= SPARK_CONNECT_MAX_ATTEMPT)
 		{
+			//if we've been trying to connect more than xx times, and still failing, log the error and reset.
 			Spark_Error_Count = 3;
 			NVMEM_Spark_File_Data[ERROR_COUNT_FILE_OFFSET] = Spark_Error_Count;
 			nvmem_write(NVMEM_SPARK_FILE_ID, 1, ERROR_COUNT_FILE_OFFSET, &NVMEM_Spark_File_Data[ERROR_COUNT_FILE_OFFSET]);
 
 			NVIC_SystemReset();
 		}
-    }
+	}
 
 	if (SPARK_SOCKET_CONNECTED)
 	{
@@ -499,16 +504,25 @@ void SPARK_WLAN_Timing(void)
 		{
 			TimingSparkProcessAPI = 0;
 
-			if(Spark_Process_API_Response() < 0)
-				SPARK_SOCKET_ALIVE = 0;
+			//don't do anything while we're handshaking.
+			if (!SPARK_DEVICE_HANDSHAKING) {
+				//has it been 200ms since the last time we checked?  look for a message.
+				if(Spark_Process_API_Response() < 0)
+					SPARK_SOCKET_ALIVE = 0;
+			}
+			else {
+				Spark_Continue_Handshake();
+			}
+
 		}
 		else
 		{
 			TimingSparkProcessAPI++;
 		}
 
-		if (SPARK_DEVICE_ACKED)
+		if (SPARK_DEVICE_ACKED)	
 		{
+			//count down when we're "ACKED" and not "ALIVE"
 			if (TimingSparkAliveTimeout >= TIMING_SPARK_ALIVE_TIMEOUT)
 			{
 				TimingSparkAliveTimeout = 0;
