@@ -539,15 +539,15 @@ void SPARK_WLAN_Timing(void)
 		{
 			TimingSparkProcessAPI = 0;
 
-			//don't do anything while we're handshaking.
-			if (!SPARK_DEVICE_HANDSHAKING) {
-				//has it been 200ms since the last time we checked?  look for a message.
-				if(Spark_Process_API_Response() < 0)
-					SPARK_SOCKET_ALIVE = 0;
-			}
-			else {
-				Spark_Continue_Handshake();
-			}
+      if (SPARK_DEVICE_HANDSHAKING)
+      {
+        Spark_Continue_Handshake();
+      }
+      else
+      {
+        if (Spark_Process_API_Response() < 0)
+          SPARK_SOCKET_ALIVE = 0;
+      }
 
 		}
 		else
