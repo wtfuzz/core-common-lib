@@ -23,6 +23,12 @@ const unsigned char smartconfigkey[] = "sparkdevices2013";	//16 bytes
 /* device name used by smart config response */
 char device_name[] = "CC3000";
 
+/* Manual connect credentials; only used if WLAN_MANUAL_CONNECT == 1 */
+char _ssid[] = "ssid";
+char _password[] = "password";
+// Auth options are WLAN_SEC_UNSEC, WLAN_SEC_WPA, WLAN_SEC_WEP, and WLAN_SEC_WPA2
+unsigned char _auth = WLAN_SEC_WPA2;
+
 unsigned char NVMEM_Spark_File_Data[NVMEM_SPARK_FILE_SIZE];
 
 __IO uint8_t SPARK_WLAN_SLEEP;
@@ -32,7 +38,6 @@ __IO uint8_t SPARK_DEVICE_HANDSHAKING;
 __IO uint8_t SPARK_SOCKET_ALIVE;
 __IO uint8_t SPARK_DEVICE_ACKED;
 __IO uint8_t SPARK_FLASH_UPDATE;
-__IO uint8_t SPARK_PROCESS_CHUNK;
 __IO uint8_t SPARK_LED_TOGGLE;
 __IO uint8_t SPARK_LED_FADE;
 
@@ -171,6 +176,11 @@ void Start_Smart_Config(void)
 	LED_On(LED_RGB);
 	SPARK_LED_TOGGLE = 1;
 #endif
+
+	TimingSparkProcessAPI = 0;
+	TimingSparkAliveTimeout = 0;
+	TimingSparkResetTimeout = 0;
+	TimingSparkOTATimeout = 0;
 }
 
 /* WLAN Application related callbacks passed to wlan_init */
@@ -215,7 +225,6 @@ void WLAN_Async_Callback(long lEventType, char *data, unsigned char length)
 			SPARK_SOCKET_ALIVE = 0;
 			SPARK_DEVICE_ACKED = 0;
 			SPARK_FLASH_UPDATE = 0;
-			SPARK_PROCESS_CHUNK = 0;
 			SPARK_LED_TOGGLE = 1;
 			SPARK_LED_FADE = 0;
 			Spark_Connect_Count = 0;
@@ -365,16 +374,21 @@ void SPARK_WLAN_Loop(void)
 	{
 		if(SPARK_WLAN_STARTED)
 		{
-			Spark_Disconnect();
+			//Spark_Disconnect();
 
-			wlan_disconnect();
+			CC3000_Write_Enable_Pin(WLAN_DISABLE);
 
-			/* Wait until CC3000 is disconnected */
-			while (WLAN_CONNECTED == 1);
+			Delay(100);
 
-			wlan_stop();
+			LED_SetRGBColor(RGB_COLOR_GREEN);
+			LED_On(LED_RGB);
 
 			SPARK_WLAN_STARTED = 0;
+			WLAN_CONNECTED = 0;
+			SPARK_SOCKET_CONNECTED = 0;
+			SPARK_LED_TOGGLE = 1;
+			SPARK_LED_FADE = 0;
+			Spark_Connect_Count = 0;
 		}
 	}
 	else
@@ -383,9 +397,16 @@ void SPARK_WLAN_Loop(void)
 		{
 			wlan_start(0);
 
-			SPARK_WLAN_STARTED = 1;
+			Delay(100);
 
-			wlan_set_event_mask(HCI_EVNT_WLAN_KEEPALIVE | HCI_EVNT_WLAN_UNSOL_INIT | HCI_EVNT_WLAN_ASYNC_PING_REPORT);
+			SPARK_WLAN_STARTED = 1;
+			SPARK_DEVICE_ACKED = 0;
+			SPARK_FLASH_UPDATE = 0;
+
+			TimingSparkProcessAPI = 0;
+			TimingSparkAliveTimeout = 0;
+			TimingSparkResetTimeout = 0;
+			TimingSparkOTATimeout = 0;
 		}
 	}
 
@@ -399,7 +420,7 @@ void SPARK_WLAN_Loop(void)
 	    wlan_ioctl_set_connection_policy(DISABLE, DISABLE, DISABLE);
 	    /* Edit the below line before use*/
 	    //wlan_connect(WLAN_SEC_WPA2, "Tomato24", 8, NULL, "", 0);
-		wlan_connect(WLAN_SEC_UNSEC, "Tomato24", 8, NULL, "", 0);
+      wlan_connect(WLAN_SEC_UNSEC, "Tomato24", 8, NULL, "", 0);
 		
 	    WLAN_MANUAL_CONNECT = 0;
 	}
@@ -462,6 +483,20 @@ void SPARK_WLAN_Loop(void)
 
 void SPARK_WLAN_Timing(void)
 {
+/*
+	if (TimingSparkOTATimeout >= TIMING_SPARK_OTA_TIMEOUT)
+	{
+		if (BKP_ReadBackupRegister(BKP_DR10) != 0xCCCC)
+			BKP_WriteBackupRegister(BKP_DR10, 0xC000);
+
+		NVIC_SystemReset();
+	}
+	else
+	{
+		TimingSparkOTATimeout++;
+	}
+*/
+
     if (WLAN_CONNECTED && !SPARK_WLAN_SLEEP && !SPARK_SOCKET_CONNECTED)
     {
 		if (!Spark_Connect_Count)
@@ -546,7 +581,6 @@ void SPARK_WLAN_Timing(void)
 			SPARK_SOCKET_CONNECTED = 0;
 			SPARK_DEVICE_ACKED = 0;
 			SPARK_FLASH_UPDATE = 0;
-			SPARK_PROCESS_CHUNK = 0;
 			Spark_Connect_Count = 0;
 		}
 	}

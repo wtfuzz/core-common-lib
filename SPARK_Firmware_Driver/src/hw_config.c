@@ -20,10 +20,10 @@
 /* Private macro -------------------------------------------------------------*/
 
 /* Private variables ---------------------------------------------------------*/
-uint8_t DFU_DEVICE_MODE = 0;
-uint8_t FACTORY_RESET_MODE = 0;
-uint8_t OTA_UPDATE_MODE = 0;
-uint8_t USE_SYSTEM_FLAGS = 0;
+int8_t OTA_UPDATE_MODE = 0;		//0, -1, 1
+uint8_t DFU_DEVICE_MODE = 0;	//0, 1
+uint8_t FACTORY_RESET_MODE = 0;	//0, 1
+uint8_t USE_SYSTEM_FLAGS = 0;	//0, 1
 
 __IO uint32_t TimingDelay;
 __IO uint32_t TimingLED;
@@ -68,6 +68,9 @@ uint8_t External_Flash_Data[4];
 uint32_t EraseCounter = 0;
 uint32_t NbrOfPage = 0;
 volatile FLASH_Status FLASHStatus = FLASH_COMPLETE;
+
+__IO uint16_t CC3000_SPI_CR;
+__IO uint16_t sFLASH_SPI_CR;
 
 /* Extern variables ----------------------------------------------------------*/
 
@@ -774,6 +777,8 @@ void CC3000_SPI_Init(void)
 	SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;
 	SPI_InitStructure.SPI_CRCPolynomial = 7;
 	SPI_Init(CC3000_SPI, &SPI_InitStructure);
+
+	CC3000_SPI_CR = CC3000_SPI->CR1;
 }
 
 /**
@@ -854,6 +859,21 @@ void CC3000_SPI_DMA_Channels(FunctionalState NewState)
 	DMA_Cmd(CC3000_SPI_RX_DMA_CHANNEL, NewState);
 	/* Enable/Disable DMA TX Channel */
 	DMA_Cmd(CC3000_SPI_TX_DMA_CHANNEL, NewState);
+}
+
+/* Select CC3000: ChipSelect pin low */
+void CC3000_CS_LOW(void)
+{
+	CC3000_SPI->CR1 &= ((uint16_t)0xFFBF);
+	sFLASH_CS_HIGH();
+	CC3000_SPI->CR1 = CC3000_SPI_CR | ((uint16_t)0x0040);
+	GPIO_ResetBits(CC3000_WIFI_CS_GPIO_PORT, CC3000_WIFI_CS_PIN);
+}
+
+/* Deselect CC3000: ChipSelect pin high */
+void CC3000_CS_HIGH(void)
+{
+	GPIO_SetBits(CC3000_WIFI_CS_GPIO_PORT, CC3000_WIFI_CS_PIN);
 }
 
 /* CC3000 Hardware related callbacks passed to wlan_init */
@@ -1008,16 +1028,33 @@ void sFLASH_SPI_Init(void)
 	SPI_InitStructure.SPI_Direction = SPI_Direction_2Lines_FullDuplex;
 	SPI_InitStructure.SPI_Mode = SPI_Mode_Master;
 	SPI_InitStructure.SPI_DataSize = SPI_DataSize_8b;
-	SPI_InitStructure.SPI_CPOL = SPI_CPOL_High;
-	SPI_InitStructure.SPI_CPHA = SPI_CPHA_2Edge;
+	SPI_InitStructure.SPI_CPOL = SPI_CPOL_Low;
+	SPI_InitStructure.SPI_CPHA = SPI_CPHA_1Edge;
 	SPI_InitStructure.SPI_NSS = SPI_NSS_Soft;
 	SPI_InitStructure.SPI_BaudRatePrescaler = sFLASH_SPI_BAUDRATE_PRESCALER;
 	SPI_InitStructure.SPI_FirstBit = SPI_FirstBit_MSB;
 	SPI_InitStructure.SPI_CRCPolynomial = 7;
 	SPI_Init(sFLASH_SPI, &SPI_InitStructure);
 
+	sFLASH_SPI_CR = sFLASH_SPI->CR1;
+
 	/*!< Enable the sFLASH_SPI  */
 	SPI_Cmd(sFLASH_SPI, ENABLE);
+}
+
+/* Select sFLASH: Chip Select pin low */
+void sFLASH_CS_LOW(void)
+{
+	sFLASH_SPI->CR1 &= ((uint16_t)0xFFBF);
+	CC3000_CS_HIGH();
+	sFLASH_SPI->CR1 = sFLASH_SPI_CR | ((uint16_t)0x0040);
+	GPIO_ResetBits(sFLASH_MEM_CS_GPIO_PORT, sFLASH_MEM_CS_PIN);
+}
+
+/* Deselect sFLASH: Chip Select pin high */
+void sFLASH_CS_HIGH(void)
+{
+	GPIO_SetBits(sFLASH_MEM_CS_GPIO_PORT, sFLASH_MEM_CS_PIN);
 }
 
 /*******************************************************************************
@@ -1179,65 +1216,15 @@ void Save_SystemFlags(void)
 	FLASH_Lock();
 }
 
-void FLASH_Begin(void)
-{
-	FLASHStatus = FLASH_COMPLETE;
-
-#if defined (USE_SPARK_CORE_V02)
-	if(FACTORY_RESET_MODE)
-		LED_SetRGBColor(RGB_COLOR_WHITE);
-	else if(OTA_UPDATE_MODE)
-		LED_SetRGBColor(RGB_COLOR_MAGENTA);
-	else
-		LED_SetRGBColor(RGB_COLOR_RED);
-
-    LED_On(LED_RGB);
-#endif
-
-	Flash_Update_SysFlag = 0xCCCC;
-	Save_SystemFlags();
-
-	BKP_WriteBackupRegister(BKP_DR10, 0xCCCC);
-
-	/* Unlock the Flash Program Erase Controller */
-	FLASH_Unlock();
-
-	/* Define the number of Internal Flash pages to be erased */
-	NbrOfPage = (INTERNAL_FLASH_END_ADDRESS - CORE_FW_ADDRESS) / INTERNAL_FLASH_PAGE_SIZE;
-
-	/* Clear All pending flags */
-	FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPRTERR);
-
-	/* Erase the Internal Flash pages */
-	for (EraseCounter = 0; (EraseCounter < NbrOfPage) && (FLASHStatus == FLASH_COMPLETE); EraseCounter++)
-	{
-		FLASHStatus = FLASH_ErasePage(CORE_FW_ADDRESS + (INTERNAL_FLASH_PAGE_SIZE * EraseCounter));
-	}
-
-	Internal_Flash_Address = CORE_FW_ADDRESS;
-}
-
-void FLASH_End(void)
-{
-	/* Locks the FLASH Program Erase Controller */
-	FLASH_Lock();
-
-	Flash_Update_SysFlag = 0xC000;
-	Save_SystemFlags();
-
-	BKP_WriteBackupRegister(BKP_DR10, 0xC000);
-
-	NVIC_SystemReset();
-}
-
 void FLASH_Backup(uint32_t sFLASH_Address)
 {
-	/* Initialize SPI Flash */
+#ifdef SPARK_SFLASH_ENABLE
+
+    /* Initialize SPI Flash */
 	sFLASH_Init();
 
 	/* Define the number of External Flash pages to be erased */
-	NbrOfPage = (INTERNAL_FLASH_END_ADDRESS - CORE_FW_ADDRESS) / sFLASH_PAGESIZE;
-	NbrOfPage += 1;	//Incase NbrOfPage is not sFLASH_PAGESIZE aligned
+	NbrOfPage = EXTERNAL_FLASH_BLOCK_SIZE / sFLASH_PAGESIZE;
 
 	/* Erase the SPI Flash pages */
 	for (EraseCounter = 0; (EraseCounter < NbrOfPage); EraseCounter++)
@@ -1265,14 +1252,44 @@ void FLASH_Backup(uint32_t sFLASH_Address)
 		sFLASH_WriteBuffer(External_Flash_Data, External_Flash_Address, 4);
 		External_Flash_Address += 4;
 	}
+
+#endif
 }
 
 void FLASH_Restore(uint32_t sFLASH_Address)
 {
-	/* Initialize SPI Flash */
+#ifdef SPARK_SFLASH_ENABLE
+
+#if defined (USE_SPARK_CORE_V02)
+	if(FACTORY_RESET_MODE)
+		LED_SetRGBColor(RGB_COLOR_WHITE);
+	else if(OTA_UPDATE_MODE)
+		LED_SetRGBColor(RGB_COLOR_MAGENTA);
+	else
+		LED_SetRGBColor(RGB_COLOR_RED);
+
+    LED_On(LED_RGB);
+#endif
+
+    /* Initialize SPI Flash */
 	sFLASH_Init();
 
-	FLASH_Begin();
+	FLASHStatus = FLASH_COMPLETE;
+
+	/* Unlock the Flash Program Erase Controller */
+	FLASH_Unlock();
+
+	/* Define the number of Internal Flash pages to be erased */
+	NbrOfPage = (INTERNAL_FLASH_END_ADDRESS - CORE_FW_ADDRESS) / INTERNAL_FLASH_PAGE_SIZE;
+
+	/* Clear All pending flags */
+	FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPRTERR);
+
+	/* Erase the Internal Flash pages */
+	for (EraseCounter = 0; (EraseCounter < NbrOfPage) && (FLASHStatus == FLASH_COMPLETE); EraseCounter++)
+	{
+		FLASHStatus = FLASH_ErasePage(CORE_FW_ADDRESS + (INTERNAL_FLASH_PAGE_SIZE * EraseCounter));
+	}
 
 	Internal_Flash_Address = CORE_FW_ADDRESS;
 	External_Flash_Address = sFLASH_Address;
@@ -1292,32 +1309,81 @@ void FLASH_Restore(uint32_t sFLASH_Address)
 		Internal_Flash_Address += 4;
 	}
 
-	FLASH_End();
+	/* Locks the FLASH Program Erase Controller */
+	FLASH_Lock();
+
+	Reset_Device();
+
+#endif
+}
+
+void FLASH_Begin(uint32_t sFLASH_Address)
+{
+#ifdef SPARK_SFLASH_ENABLE
+
+#if defined (USE_SPARK_CORE_V02)
+	LED_SetRGBColor(RGB_COLOR_MAGENTA);
+    LED_On(LED_RGB);
+#endif
+
+	Flash_Update_SysFlag = 0x5555;
+	Save_SystemFlags();
+
+	BKP_WriteBackupRegister(BKP_DR10, 0x5555);
+
+	External_Flash_Address = sFLASH_Address;
+
+	/* Define the number of External Flash pages to be erased */
+	NbrOfPage = EXTERNAL_FLASH_BLOCK_SIZE / sFLASH_PAGESIZE;
+
+	/* Erase the SPI Flash pages */
+	for (EraseCounter = 0; (EraseCounter < NbrOfPage); EraseCounter++)
+	{
+		sFLASH_EraseSector(sFLASH_Address + (sFLASH_PAGESIZE * EraseCounter));
+	}
+
+#endif
 }
 
 void FLASH_Update(uint8_t *pBuffer, uint32_t bufferSize)
 {
+#ifdef SPARK_SFLASH_ENABLE
+
 	uint32_t i = bufferSize >> 2;
 
-	/* Program Internal Flash Bank1 */
-	while (i-- && (FLASHStatus == FLASH_COMPLETE))
+	/* Program External Flash */
+	while (i--)
 	{
-	    /* Program Word to Internal Flash memory */
-	    Internal_Flash_Data = *((uint32_t *)pBuffer);
-	    pBuffer += 4;
+		Internal_Flash_Data = *((uint32_t *)pBuffer);
+		pBuffer += 4;
 
-		FLASHStatus = FLASH_ProgramWord(Internal_Flash_Address, Internal_Flash_Data);
-		Internal_Flash_Address += 4;
+	    /* Program Word to SPI Flash memory */
+		External_Flash_Data[0] = (uint8_t)(Internal_Flash_Data & 0xFF);
+		External_Flash_Data[1] = (uint8_t)((Internal_Flash_Data & 0xFF00) >> 8);
+		External_Flash_Data[2] = (uint8_t)((Internal_Flash_Data & 0xFF0000) >> 16);
+		External_Flash_Data[3] = (uint8_t)((Internal_Flash_Data & 0xFF000000) >> 24);
+		//OR
+		//*((uint32_t *)External_Flash_Data) = Internal_Flash_Data;
+		sFLASH_WriteBuffer(External_Flash_Data, External_Flash_Address, 4);
+		External_Flash_Address += 4;
 	}
 
 	i = bufferSize & 3;
 
 	/* Not an aligned data */
-	if ((i != 0) && (FLASHStatus == FLASH_COMPLETE))
+	if (i != 0)
 	{
-	    /* Program the last word to Internal Flash memory */
-	    Internal_Flash_Data = *((uint32_t *)pBuffer);
-		FLASHStatus = FLASH_ProgramWord(Internal_Flash_Address, Internal_Flash_Data);
+	    /* Program the last word to SPI Flash memory */
+		Internal_Flash_Data = *((uint32_t *)pBuffer);
+
+	    /* Program Word to SPI Flash memory */
+		External_Flash_Data[0] = (uint8_t)(Internal_Flash_Data & 0xFF);
+		External_Flash_Data[1] = (uint8_t)((Internal_Flash_Data & 0xFF00) >> 8);
+		External_Flash_Data[2] = (uint8_t)((Internal_Flash_Data & 0xFF0000) >> 16);
+		External_Flash_Data[3] = (uint8_t)((Internal_Flash_Data & 0xFF000000) >> 24);
+		//OR
+		//*((uint32_t *)External_Flash_Data) = Internal_Flash_Data;
+		sFLASH_WriteBuffer(External_Flash_Data, External_Flash_Address, 4);
 	}
 
 #if defined (USE_SPARK_CORE_V01)
@@ -1325,31 +1391,66 @@ void FLASH_Update(uint8_t *pBuffer, uint32_t bufferSize)
 #elif defined (USE_SPARK_CORE_V02)
 	LED_Toggle(LED_RGB);
 #endif
+
+#endif
+}
+
+void FLASH_End(void)
+{
+#ifdef SPARK_SFLASH_ENABLE
+
+	Flash_Update_SysFlag = 0x0005;
+	Save_SystemFlags();
+
+	BKP_WriteBackupRegister(BKP_DR10, 0x0005);
+
+    USB_Cable_Config(DISABLE);
+
+	NVIC_SystemReset();
+
+#endif
 }
 
 // keyBuffer length must be at least EXTERNAL_FLASH_SERVER_PUBLIC_KEY_LENGTH
 void FLASH_Read_ServerPublicKey(uint8_t *keyBuffer)
 {
-  sFLASH_ReadBuffer(keyBuffer,
-                    EXTERNAL_FLASH_SERVER_PUBLIC_KEY_ADDRESS,
-                    EXTERNAL_FLASH_SERVER_PUBLIC_KEY_LENGTH);
+#ifdef SPARK_SFLASH_ENABLE
+
+	sFLASH_ReadBuffer(keyBuffer,
+			EXTERNAL_FLASH_SERVER_PUBLIC_KEY_ADDRESS,
+			EXTERNAL_FLASH_SERVER_PUBLIC_KEY_LENGTH);
+
+#endif
 }
 
 // keyBuffer length must be at least EXTERNAL_FLASH_CORE_PRIVATE_KEY_LENGTH
 void FLASH_Read_CorePrivateKey(uint8_t *keyBuffer)
 {
-  sFLASH_ReadBuffer(keyBuffer,
-                    EXTERNAL_FLASH_CORE_PRIVATE_KEY_ADDRESS,
-                    EXTERNAL_FLASH_CORE_PRIVATE_KEY_LENGTH);
+#ifdef SPARK_SFLASH_ENABLE
+
+	sFLASH_ReadBuffer(keyBuffer,
+			EXTERNAL_FLASH_CORE_PRIVATE_KEY_ADDRESS,
+			EXTERNAL_FLASH_CORE_PRIVATE_KEY_LENGTH);
+
+#endif
 }
 
-void Factory_Reset(void)
+void Factory_Flash_Reset(void)
 {
     //First take backup of the current application firmware to External Flash
-    FLASH_Backup(EXTERNAL_FLASH_BKP1_ADDRESS);
+    FLASH_Backup(EXTERNAL_FLASH_BKP_ADDRESS);
 
     //Restore the Factory programmed application firmware from External Flash
-	FLASH_Restore(EXTERNAL_FLASH_FACT_ADDRESS);
+	FLASH_Restore(EXTERNAL_FLASH_FAC_ADDRESS);
+}
+
+void OTA_Flash_Update(void)
+{
+    //First take backup of the current application firmware to External Flash
+    FLASH_Backup(EXTERNAL_FLASH_BKP_ADDRESS);
+
+    //Restore the OTA programmed application firmware from External Flash
+	FLASH_Restore(EXTERNAL_FLASH_OTA_ADDRESS);
 }
 
 /*******************************************************************************
@@ -1360,21 +1461,14 @@ void Factory_Reset(void)
 *******************************************************************************/
 void Reset_Device(void)
 {
-	BKP_WriteBackupRegister(BKP_DR10, 0xC000);
-
-    USB_Cable_Config(DISABLE);
-
-    NVIC_SystemReset();
-}
-
-void Start_OTA_Update(void)
-{
 	Flash_Update_SysFlag = 0x5000;
 	Save_SystemFlags();
 
 	BKP_WriteBackupRegister(BKP_DR10, 0x5000);
 
-	NVIC_SystemReset();
+    USB_Cable_Config(DISABLE);
+
+    NVIC_SystemReset();
 }
 
 /**
@@ -1422,4 +1516,27 @@ uint32_t Compute_CRC32(uint8_t *pBuffer, uint32_t bufferSize)
 	Data ^= 0xFFFFFFFF;
 
 	return Data;
+}
+
+void Get_Unique_Device_ID(uint8_t *Device_ID)
+{
+  uint32_t Device_IDx;
+
+  Device_IDx = *(uint32_t*)ID1;
+  *(Device_ID+0) = (uint8_t)(Device_IDx & 0xFF);
+  *(Device_ID+1) = (uint8_t)((Device_IDx & 0xFF00) >> 8);
+  *(Device_ID+2) = (uint8_t)((Device_IDx & 0xFF0000) >> 16);
+  *(Device_ID+3) = (uint8_t)((Device_IDx & 0xFF000000) >> 24);
+
+  Device_IDx = *(uint32_t*)ID2;
+  *(Device_ID+4) = (uint8_t)(Device_IDx & 0xFF);
+  *(Device_ID+5) = (uint8_t)((Device_IDx & 0xFF00) >> 8);
+  *(Device_ID+6) = (uint8_t)((Device_IDx & 0xFF0000) >> 16);
+  *(Device_ID+7) = (uint8_t)((Device_IDx & 0xFF000000) >> 24);
+
+  Device_IDx = *(uint32_t*)ID3;
+  *(Device_ID+8) = (uint8_t)(Device_IDx & 0xFF);
+  *(Device_ID+9) = (uint8_t)((Device_IDx & 0xFF00) >> 8);
+  *(Device_ID+10) = (uint8_t)((Device_IDx & 0xFF0000) >> 16);
+  *(Device_ID+11) = (uint8_t)((Device_IDx & 0xFF000000) >> 24);
 }

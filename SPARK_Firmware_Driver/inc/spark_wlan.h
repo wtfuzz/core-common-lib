@@ -20,6 +20,7 @@
 #define TIMING_SPARK_PROCESS_API	200		//200ms
 #define TIMING_SPARK_ALIVE_TIMEOUT	15000	//15sec
 #define TIMING_SPARK_RESET_TIMEOUT	30000	//30sec
+#define TIMING_SPARK_OTA_TIMEOUT	180000	//180sec
 
 #define SPARK_CONNECT_MAX_ATTEMPT	3		//Max no of connection attempts
 
@@ -49,7 +50,6 @@ extern __IO uint8_t SPARK_SOCKET_CONNECTED;
 extern __IO uint8_t SPARK_DEVICE_HANDSHAKING;
 extern __IO uint8_t SPARK_DEVICE_ACKED;
 extern __IO uint8_t SPARK_FLASH_UPDATE;
-extern __IO uint8_t SPARK_PROCESS_CHUNK;
 extern __IO uint8_t SPARK_LED_TOGGLE;
 extern __IO uint8_t SPARK_LED_FADE;
 
