@@ -820,7 +820,7 @@ void CC3000_WIFI_Init(void)
 	GPIO_Init(CC3000_WIFI_EN_GPIO_PORT, &GPIO_InitStructure);
 
 	/* Disable CC3000 */
-	CC3000_Write_Enable_Pin(WLAN_DISABLE);
+	//CC3000_Write_Enable_Pin(WLAN_DISABLE);
 }
 
 /**
@@ -1024,7 +1024,7 @@ void CC3000_Interrupt_Disable(void)
 void CC3000_Write_Enable_Pin(unsigned char val)
 {
 	/* Set WLAN Enable/Disable */
-	if (val != WLAN_DISABLE)
+	if (val != 0)
 	{
 		GPIO_SetBits(CC3000_WIFI_EN_GPIO_PORT, CC3000_WIFI_EN_GPIO_PIN );
 	}

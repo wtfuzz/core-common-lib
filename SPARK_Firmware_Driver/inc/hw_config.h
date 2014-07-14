@@ -32,7 +32,6 @@
 #include "platform_config.h"
 #include "config.h"
 #include "sst25vf_spi.h"
-#include "cc3000_common.h"
 #include "usb_type.h"
 
 /* Exported types ------------------------------------------------------------*/

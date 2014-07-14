@@ -31,9 +31,6 @@
 /* Includes ------------------------------------------------------------------*/
 #include <string.h>
 #include "hw_config.h"
-#include "cc3000_common.h"
-#include "hci.h"
-#include "wlan.h"
 
 #ifndef FALSE
 #define FALSE					0x00
@@ -42,26 +39,14 @@
 #define TRUE					!FALSE
 #endif
 
-#define READ					0x03
-#define WRITE					0x01
-
-#define HI(value)				(((value) & 0xFF00) >> 8)
-#define LO(value)				((value) & 0x00FF)
-
 #define ASSERT_CS()				CC3000_CS_LOW()
 #define DEASSERT_CS()			        CC3000_CS_HIGH()
-
-
-#define HEADERS_SIZE_EVNT       (SPI_HEADER_SIZE + 5)
-#define MAX_PACKET_PAYLOAD_SIZE 1014
-#define RX_SPI_BUFFER_SIZE      (MAX_PACKET_PAYLOAD_SIZE+HEADERS_SIZE_EVNT)
-#define TX_SPI_BUFFER_SIZE      (MAX_PACKET_PAYLOAD_SIZE+HEADERS_SIZE_EVNT)
 
 typedef void (*gcSpiHandleRx)(void *p);
 typedef void (*gcSpiHandleTx)(void);
 
-extern unsigned char wlan_rx_buffer[RX_SPI_BUFFER_SIZE];
-extern unsigned char wlan_tx_buffer[TX_SPI_BUFFER_SIZE];
+extern unsigned char wlan_rx_buffer[512];
+extern unsigned char wlan_tx_buffer[512];
 
 /* CC3000 SPI Protocol API */
 extern void SpiOpen(gcSpiHandleRx pfRxHandler);

@@ -32,7 +32,6 @@
 
 #include <stdint.h>
 #include "cc3000_spi.h"
-#include "socket.h"
 #include "spark_macros.h"
 #include "debug.h"
 
@@ -82,11 +81,13 @@ typedef struct
 
 tSpiInformation sSpiInformation;
 
+/*
 unsigned char wlan_rx_buffer[RX_SPI_BUFFER_SIZE];
 unsigned char wlan_tx_buffer[TX_SPI_BUFFER_SIZE];
 
 uint8_t spi_readCommand[] = READ_COMMAND;
 CCASSERT(SPI_HEADER_SIZE == sizeof(spi_readCommand));
+*/
 
 
 typedef uint32_t intState;
@@ -129,51 +130,6 @@ static inline eCC3000States SetState(eCC3000States ns, eCSActions cs)
   return os;
 }
 
-static inline int WaitFor(eCC3000States s)
-{
-  int rv = 1;
-  do
-  {
-      intState save = DISABLE_INT();
-      rv = (s !=  sSpiInformation.ulSpiState);
-      // The following handles the race or if the SPiResumeSpi was not called
-      if (rv && s== eSPI_STATE_WRITE_PROCEED && 0==tSLInformation.ReadWlanInterruptPin())
-      {
-         sSpiInformation.ulSpiState = eSPI_STATE_WRITE_PROCEED;
-         rv = 0;
-      }
-      ENABLE_INT(save);
-  } while(rv && !sSpiInformation.abort);
-  return !sSpiInformation.abort;
-}
-
-static inline int Still(eCC3000States s)
-{
-  int rv = 1;
-  do
-  {
-      intState save = DISABLE_INT();
-      rv = (s ==  sSpiInformation.ulSpiState);
-      ENABLE_INT(save);
-  } while(rv && !sSpiInformation.abort);
-  return !sSpiInformation.abort;
-}
-
-static inline int Reserve(eCC3000States ns)
-{
-   int idle = 0;
-   do
-   {
-       intState save = DISABLE_INT();
-       idle = (eSPI_STATE_IDLE ==  sSpiInformation.ulSpiState);
-       if (idle)
-         {
-           SetState(ns, eAssert);
-         }
-       ENABLE_INT(save);
-   } while(!idle && !sSpiInformation.abort);
-   return !sSpiInformation.abort;
- }
 /****************************************************************************
  CC3000 SPI Protocol API
  ****************************************************************************/
@@ -189,19 +145,24 @@ void SpiOpen(gcSpiHandleRx pfRxHandler)
 	sSpiInformation.usTxPacketLength = 0;
 
 	/* Enable Interrupt */
+
+/*
         tSLInformation.WriteWlanPin( WLAN_DISABLE );
         Delay_Microsecond(MS2u(300));
  	tSLInformation.WlanInterruptEnable();
         Delay_Microsecond(MS2u(1));
         tSLInformation.WriteWlanPin( WLAN_ENABLE );
         WaitFor(eSPI_STATE_INITIALIZED);
+*/
 
 }
 
 void SpiClose(void)
 {
+#if 0
      tSLInformation.WlanInterruptDisable();
      tSLInformation.WriteWlanPin( WLAN_DISABLE );
+#endif
 
       sSpiInformation.pRxPacket = 0;
 }
@@ -244,7 +205,7 @@ int SpiIO(eSPIOperation op, const uint8_t *ptrData, uint32_t ulDataSize, int wai
 	if (op == eRead)
 	{
 		CC3000_DMA_Config(CC3000_DMA_RX, (uint8_t*) ptrData, ulDataSize);
-		CC3000_DMA_Config(CC3000_DMA_TX, (uint8_t*) spi_readCommand, ulDataSize);
+		//CC3000_DMA_Config(CC3000_DMA_TX, (uint8_t*) spi_readCommand, ulDataSize);
 	}
 	else
 	{
@@ -257,12 +218,13 @@ int SpiIO(eSPIOperation op, const uint8_t *ptrData, uint32_t ulDataSize, int wai
 
 	/* Enable DMA Channels */
 	CC3000_SPI_DMA_Channels(ENABLE);
-	return waitOnCompletion ? Still(current) : 0;
+  return 0;
 
 }
 
 long SpiSetUp(unsigned char *pUserBuffer, unsigned short usLength)
 {
+#if 0
         size_t tx_len = (usLength & 1) ? usLength : usLength +1;
 
         pUserBuffer[0] = WRITE;
@@ -276,6 +238,9 @@ long SpiSetUp(unsigned char *pUserBuffer, unsigned short usLength)
         sSpiInformation.usTxPacketLength = usLength;
         tx_len += SPI_HEADER_SIZE;
         return  tx_len;
+#endif
+
+  return 0;
 }
 
 
@@ -287,6 +252,7 @@ long SpiSetUp(unsigned char *pUserBuffer, unsigned short usLength)
 long SpiWrite(unsigned char *ucBuf, unsigned short usLength)
 {
 
+#if 0
         int NotAborted = 0;
         switch (State())
         {
@@ -338,6 +304,7 @@ long SpiWrite(unsigned char *ucBuf, unsigned short usLength)
           break;
         }
         return NotAborted ? usLength : -1;
+#endif
 }
 
 /**
@@ -348,6 +315,8 @@ long SpiWrite(unsigned char *ucBuf, unsigned short usLength)
  */
 void SPI_DMA_IntHandler(void)
 {
+
+#if 0
 	unsigned long ucTxFinished, ucRxFinished;
 	unsigned short data_to_recv = 0;
 
@@ -438,6 +407,8 @@ void SPI_DMA_IntHandler(void)
 	  break;
 
 	}
+
+#endif
 }
 
 
@@ -449,6 +420,8 @@ void SPI_DMA_IntHandler(void)
  */
 void SPI_EXTI_IntHandler(void)
 {
+
+#if 0
 	//Pending is cleared in first level of ISR handler
 	if (!tSLInformation.ReadWlanInterruptPin())
 	{
@@ -469,5 +442,6 @@ void SPI_EXTI_IntHandler(void)
               break;
 	    }
 	}
+#endif
 }
 
